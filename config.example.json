@@ -1,0 +1,24 @@
+{
+  "llm_config": {
+    "model": "gpt-4",
+    "temperature": 0.7,
+    "max_tokens": 2000,
+    "openai_api_key": "sk-your-openai-key-here",
+    "anthropic_api_key": "sk-your-anthropic-key-here"
+  },
+  "search_config": {
+    "engine": "duckduckgo",
+    "max_results": 10,
+    "google_api_key": "optional-google-api-key",
+    "google_search_engine_id": "optional-search-engine-id"
+  },
+  "executor_config": {
+    "safe_mode": true,
+    "timeout": 30,
+    "use_docker": false
+  },
+  "computer_config": {
+    "allowed_actions": ["screenshot", "mouse_move", "keyboard_type"],
+    "safe_mode": true
+  }
+}
