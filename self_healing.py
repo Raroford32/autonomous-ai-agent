@@ -51,6 +51,7 @@ class SelfHealer:
         self.failure_history: List[Failure] = []
         self.monitoring_active = False
         self.healing_strategies = self._load_healing_strategies()
+        self.strategy_effectiveness: Dict[str, Dict] = {}  # Track healing strategy success rates
 
         logger.info("Self-Healer initialized")
 
@@ -386,9 +387,87 @@ class SelfHealer:
             'context': failure.context
         }
 
-        # Could store this in a knowledge base for future reference
-        # For now, just log it
+        # Update healing strategy effectiveness
+        if hasattr(self, 'strategy_effectiveness'):
+            key = f"{failure.error_type}:{failure.resolution_strategy}"
+            if key not in self.strategy_effectiveness:
+                self.strategy_effectiveness[key] = {'attempts': 0, 'successes': 0}
+            self.strategy_effectiveness[key]['attempts'] += 1
+            if failure.resolution_successful:
+                self.strategy_effectiveness[key]['successes'] += 1
+        
+        # Pass to learner if available
+        if hasattr(self.agent, 'learner'):
+            from self_learning import Experience
+            experience = Experience(
+                timestamp=failure.timestamp,
+                task_description=f"Healing {failure.component} failure",
+                strategy_used=failure.resolution_strategy,
+                actions_taken=[learning_data],
+                outcome='success' if failure.resolution_successful else 'failure',
+                performance_metrics={'healing_time': 1.0},
+                context=failure.context
+            )
+            await self.agent.learner.record_experience(experience)
+
         logger.info(f"Learned: {json.dumps(learning_data, indent=2)}")
+    
+    async def predict_failures(self) -> List[Dict[str, Any]]:
+        """Predict potential failures based on health trends"""
+        predictions = []
+        
+        if len(self.health_metrics) < 20:
+            return predictions
+        
+        # Analyze trends in health metrics
+        recent_metrics = self.health_metrics[-20:]
+        metric_types = set(m.metric_name for m in recent_metrics)
+        
+        for metric_type in metric_types:
+            type_metrics = [m for m in recent_metrics if m.metric_name == metric_type]
+            
+            if len(type_metrics) >= 5:
+                # Check for degrading trend
+                values = [m.value for m in type_metrics[-5:]]
+                if self._is_degrading_trend(values, metric_type):
+                    predictions.append({
+                        'metric': metric_type,
+                        'trend': 'degrading',
+                        'risk_level': 'high',
+                        'recommended_action': self._get_preventive_action(metric_type)
+                    })
+        
+        return predictions
+    
+    def _is_degrading_trend(self, values: List[float], metric_type: str) -> bool:
+        """Check if metric values show degrading trend"""
+        if len(values) < 3:
+            return False
+        
+        # For metrics where higher is worse (cpu, memory)
+        if 'cpu' in metric_type or 'memory' in metric_type:
+            # Check if consistently increasing
+            increases = sum(1 for i in range(len(values)-1) if values[i+1] > values[i])
+            return increases >= len(values) - 2
+        
+        # For health metrics where lower is worse
+        elif 'health' in metric_type:
+            decreases = sum(1 for i in range(len(values)-1) if values[i+1] < values[i])
+            return decreases >= len(values) - 2
+        
+        return False
+    
+    def _get_preventive_action(self, metric_type: str) -> str:
+        """Get recommended preventive action for metric"""
+        actions = {
+            'cpu_usage': 'Optimize background tasks, reduce parallel operations',
+            'memory_usage': 'Clear caches, reduce memory footprint',
+            'llm_health': 'Check API keys and rate limits',
+            'executor_health': 'Verify execution environment',
+            'searcher_health': 'Test search engine connectivity',
+            'computer_health': 'Verify system permissions'
+        }
+        return actions.get(metric_type, 'Monitor and investigate')
 
     def get_health_report(self) -> Dict:
         """Generate comprehensive health report"""

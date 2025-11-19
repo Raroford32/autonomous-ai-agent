@@ -345,3 +345,100 @@ class SelfLearner:
                 )[:10]
             ]
         }
+    
+    async def adaptive_learning_rate(self) -> float:
+        """Calculate adaptive learning rate based on performance"""
+        if len(self.experiences) < 10:
+            return 0.1  # High learning rate initially
+        
+        recent_successes = sum(
+            1 for e in self.experiences[-20:] 
+            if e.outcome == 'success'
+        )
+        recent_success_rate = recent_successes / min(20, len(self.experiences))
+        
+        # Decrease learning rate as performance improves
+        if recent_success_rate > 0.8:
+            return 0.02  # Low learning rate when performing well
+        elif recent_success_rate > 0.5:
+            return 0.05
+        else:
+            return 0.1  # Higher learning rate when struggling
+    
+    async def identify_knowledge_gaps(self) -> List[str]:
+        """Identify areas where the agent lacks knowledge"""
+        gaps = []
+        
+        # Analyze failed experiences
+        failed_experiences = [e for e in self.experiences if e.outcome == 'failure']
+        
+        # Group by task type
+        failure_by_type = defaultdict(int)
+        for exp in failed_experiences:
+            task_type = self._classify_task(exp.task_description)
+            failure_by_type[task_type] += 1
+        
+        # Identify types with high failure rates
+        for task_type, failure_count in failure_by_type.items():
+            total_count = sum(
+                1 for e in self.experiences 
+                if self._classify_task(e.task_description) == task_type
+            )
+            
+            if total_count > 5 and failure_count / total_count > 0.4:
+                gaps.append(f"Low performance on {task_type}: {failure_count}/{total_count} failures")
+        
+        # Identify strategies that haven't been tried
+        all_possible_strategies = {
+            'llm_direct', 'search_first', 'code_execution', 
+            'decompose_and_conquer', 'iterative_refinement',
+            'multi_step_planning', 'tool_assisted'
+        }
+        tried_strategies = set(self.strategy_performance.keys())
+        untried = all_possible_strategies - tried_strategies
+        
+        if untried:
+            gaps.append(f"Untried strategies: {', '.join(untried)}")
+        
+        return gaps
+    
+    async def recommend_improvements(self) -> List[Dict[str, str]]:
+        """Recommend specific improvements based on learning data"""
+        recommendations = []
+        
+        # Check overall performance
+        if len(self.experiences) > 20:
+            recent_success_rate = sum(
+                1 for e in self.experiences[-20:] 
+                if e.outcome == 'success'
+            ) / 20
+            
+            if recent_success_rate < 0.5:
+                recommendations.append({
+                    'area': 'Overall Performance',
+                    'issue': f'Low success rate: {recent_success_rate:.1%}',
+                    'recommendation': 'Review and refine strategies, consider using more conservative approaches'
+                })
+        
+        # Check strategy diversity
+        if len(self.strategy_performance) < 3:
+            recommendations.append({
+                'area': 'Strategy Diversity',
+                'issue': 'Limited strategy variety',
+                'recommendation': 'Explore more diverse problem-solving approaches'
+            })
+        
+        # Check for knowledge staleness
+        stale_knowledge = [
+            k for k, v in self.knowledge_base.items()
+            if (datetime.utcnow() - v.timestamp).days > 30
+        ]
+        
+        if len(stale_knowledge) > len(self.knowledge_base) * 0.5:
+            recommendations.append({
+                'area': 'Knowledge Freshness',
+                'issue': f'{len(stale_knowledge)} knowledge entries older than 30 days',
+                'recommendation': 'Validate and refresh outdated knowledge'
+            })
+        
+        return recommendations
