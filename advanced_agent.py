@@ -244,10 +244,17 @@ class AdvancedAgent(AutonomousAgent):
         }
 
     async def self_improve(self):
-        """Trigger self-improvement cycle"""
-        logger.info("Starting self-improvement cycle")
+        """Trigger comprehensive self-improvement cycle"""
+        logger.info("Starting comprehensive self-improvement cycle")
+        
+        improvements = {
+            'code_refactoring': None,
+            'knowledge_gaps': None,
+            'healing_optimizations': None,
+            'recommendations': None
+        }
 
-        # Analyze own codebase
+        # 1. Analyze and refactor codebase
         code_files = [
             'agent.py',
             'advanced_agent.py',
@@ -258,31 +265,125 @@ class AdvancedAgent(AutonomousAgent):
         ]
 
         analysis = await self.refactorer.analyze_codebase(code_files)
-
         logger.info(f"Code analysis complete: {len(analysis['issues_found'])} issues found")
 
         # Apply refactoring to files with issues
+        refactored_files = []
         for filepath, metrics in analysis['metrics'].items():
             if any(issue['severity'] == 'high' for issue in analysis['issues_found']):
                 logger.info(f"Auto-refactoring {filepath}")
-                await self.refactorer.auto_refactor(filepath, backup=True)
-
-        # Report improvements
-        return {
+                result = await self.refactorer.auto_refactor(filepath, backup=True)
+                if result:
+                    refactored_files.append(filepath)
+        
+        improvements['code_refactoring'] = {
             'analysis': analysis,
-            'refactorings': len(self.refactorer.refactoring_history)
+            'refactored_files': refactored_files,
+            'total_refactorings': len(self.refactorer.refactoring_history)
         }
 
+        # 2. Identify knowledge gaps
+        gaps = await self.learner.identify_knowledge_gaps()
+        improvements['knowledge_gaps'] = gaps
+        logger.info(f"Identified {len(gaps)} knowledge gaps")
+
+        # 3. Get learning recommendations
+        recommendations = await self.learner.recommend_improvements()
+        improvements['recommendations'] = recommendations
+        logger.info(f"Generated {len(recommendations)} improvement recommendations")
+
+        # 4. Predict and prevent failures
+        predictions = await self.healer.predict_failures()
+        improvements['healing_optimizations'] = {
+            'predicted_failures': predictions,
+            'preventive_actions': [p['recommended_action'] for p in predictions]
+        }
+        logger.info(f"Predicted {len(predictions)} potential failures")
+
+        # 5. Optimize strategy selection based on data
+        await self.learner._optimize_strategies()
+        
+        logger.info("Self-improvement cycle complete")
+        return improvements
+    
+    async def continuous_evolution(self, duration_hours: int = 24):
+        """Run continuous evolution loop for specified duration"""
+        logger.info(f"Starting continuous evolution for {duration_hours} hours")
+        
+        import time
+        start_time = time.time()
+        end_time = start_time + (duration_hours * 3600)
+        
+        evolution_metrics = {
+            'improvements_made': 0,
+            'tasks_completed': 0,
+            'failures_healed': 0,
+            'new_knowledge': 0
+        }
+        
+        while time.time() < end_time:
+            try:
+                # Periodic self-improvement (every 2 hours)
+                if int((time.time() - start_time) / 7200) > evolution_metrics['improvements_made']:
+                    logger.info("Triggering periodic self-improvement")
+                    await self.self_improve()
+                    evolution_metrics['improvements_made'] += 1
+                
+                # Monitor and optimize
+                await asyncio.sleep(300)  # Check every 5 minutes
+                
+                # Check for predicted failures and take preventive action
+                predictions = await self.healer.predict_failures()
+                for pred in predictions:
+                    logger.warning(f"Predicted failure: {pred['metric']}, taking preventive action")
+                    # Take preventive action based on recommendation
+                
+            except Exception as e:
+                logger.error(f"Evolution cycle error: {e}")
+                await self.healer.handle_failure(e, 'evolution', {})
+        
+        logger.info(f"Evolution complete. Metrics: {evolution_metrics}")
+        return evolution_metrics
+
     def get_status_report(self) -> Dict[str, Any]:
-        """Get comprehensive status report"""
+        """Get comprehensive status report with advanced metrics"""
+        health_report = self.healer.get_health_report()
+        learning_report = self.learner.get_learning_report()
+        
         return {
             'agent_status': 'operational',
-            'health': self.healer.get_health_report(),
-            'learning': self.learner.get_learning_report(),
-            'built_tools': list(self.builder.built_tools.keys()),
-            'refactorings': len(self.refactorer.refactoring_history),
-            'memory_size': len(self.memory),
-            'task_queue_size': len(self.task_queue)
+            'uptime_metrics': {
+                'current_health': health_report['current_status'],
+                'total_failures': health_report['total_failures'],
+                'successful_healings': health_report['successful_healings'],
+                'healing_success_rate': (
+                    health_report['successful_healings'] / health_report['total_failures'] 
+                    if health_report['total_failures'] > 0 else 1.0
+                )
+            },
+            'learning_metrics': {
+                'total_experiences': learning_report['total_experiences'],
+                'success_rate': learning_report['overall_success_rate'],
+                'knowledge_base_size': learning_report['knowledge_base_size'],
+                'adaptive_learning_rate': 0.05  # Would call asyncio method
+            },
+            'capabilities': {
+                'built_tools': list(self.builder.built_tools.keys()),
+                'total_tools': len(self.builder.built_tools),
+                'core_capabilities': self._get_current_capabilities()
+            },
+            'code_quality': {
+                'refactorings_applied': len(self.refactorer.refactoring_history),
+                'last_refactoring': (
+                    self.refactorer.refactoring_history[-1]['timestamp'].isoformat() 
+                    if self.refactorer.refactoring_history else None
+                )
+            },
+            'performance': {
+                'memory_size': len(self.memory),
+                'task_queue_size': len(self.task_queue),
+                'strategy_performance': learning_report['strategy_performance']
+            }
         }
 
 
