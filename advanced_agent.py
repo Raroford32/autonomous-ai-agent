@@ -20,6 +20,8 @@ from self_learning import SelfLearner, Experience
 from zero_reasoning import ZeroReasoner
 from tool_builder import ToolBuilder, ToolSpec
 from refactoring_loop import RefactoringLoop
+from metrics_monitor import MetricsMonitor
+from resilience import ResilienceManager
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -41,6 +43,8 @@ class AdvancedAgent(AutonomousAgent):
         self.reasoner = ZeroReasoner(self)
         self.builder = ToolBuilder(self)
         self.refactorer = RefactoringLoop(self)
+        self.metrics = MetricsMonitor(self, retention_hours=24)
+        self.resilience = ResilienceManager(self)
 
         # Start background monitoring
         self.monitoring_task = None
@@ -349,9 +353,12 @@ class AdvancedAgent(AutonomousAgent):
         """Get comprehensive status report with advanced metrics"""
         health_report = self.healer.get_health_report()
         learning_report = self.learner.get_learning_report()
+        resilience_report = self.resilience.get_resilience_report()
+        metrics_report = self.metrics.get_comprehensive_report()
         
         return {
             'agent_status': 'operational',
+            'health_score': metrics_report['health_score'],
             'uptime_metrics': {
                 'current_health': health_report['current_status'],
                 'total_failures': health_report['total_failures'],
@@ -367,6 +374,8 @@ class AdvancedAgent(AutonomousAgent):
                 'knowledge_base_size': learning_report['knowledge_base_size'],
                 'adaptive_learning_rate': 0.05  # Would call asyncio method
             },
+            'resilience_status': resilience_report,
+            'metrics_summary': metrics_report['metrics_summary'],
             'capabilities': {
                 'built_tools': list(self.builder.built_tools.keys()),
                 'total_tools': len(self.builder.built_tools),
@@ -383,7 +392,8 @@ class AdvancedAgent(AutonomousAgent):
                 'memory_size': len(self.memory),
                 'task_queue_size': len(self.task_queue),
                 'strategy_performance': learning_report['strategy_performance']
-            }
+            },
+            'active_alerts': metrics_report['active_alerts']
         }
 
 
